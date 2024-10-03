@@ -4,13 +4,13 @@ using Base.Libc.Libdl
 
 const libpq::String = normpath(joinpath(dirname(@__FILE__), "..", "target", "release", "libpq_rs.dll"))
 
-Base.write(io::IO, s::Cstring) = write(io, unsafe_string(s))
-Base.print(io::IO, s::Cstring) = (write(io, unsafe_string(s)); nothing)
-Base.show(io::IO, s::Cstring) = show(io, unsafe_string(s))
+# Base.write(io::IO, s::Cstring) = write(io, unsafe_string(s))
+# Base.print(io::IO, s::Cstring) = (write(io, unsafe_string(s)); nothing)
+# Base.show(io::IO, s::Cstring) = show(io, unsafe_string(s))
 
-Base.write(io::IO, s::Ptr{Cchar}) = write(io, unsafe_string(s))
-Base.print(io::IO, s::Ptr{Cchar}) = (write(io, unsafe_string(s)); nothing)
-Base.show(io::IO, s::Ptr{Cchar}) = show(io, unsafe_string(s))
+# Base.write(io::IO, s::Ptr{Cchar}) = write(io, unsafe_string(s))
+# Base.print(io::IO, s::Ptr{Cchar}) = (write(io, unsafe_string(s)); nothing)
+# Base.show(io::IO, s::Ptr{Cchar}) = show(io, unsafe_string(s))
 
 function conn(url)::Ptr{Cvoid}
     ccall((:conn, libpq), Ptr{Cvoid}, (Cstring,), url)
