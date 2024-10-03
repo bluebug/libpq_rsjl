@@ -1,0 +1,4 @@
+language = "C"
+documentation = true
+documentation_style = "auto"
+documentation_length = "full"

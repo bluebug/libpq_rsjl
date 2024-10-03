@@ -1,0 +1,4 @@
+name = "pq"
+uuid = "800dc8f6-2f71-4e31-9c72-9818ab78c6bf"
+authors = ["bluebug <bluebug.cn@gmail.com>"]
+version = "0.1.0"
