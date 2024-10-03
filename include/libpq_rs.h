@@ -4,15 +4,22 @@
 #include <ostream>
 #include <new>
 
+/// string for csv ffi
+struct CsvString {
+  const int8_t *ptr;
+  uint32_t len;
+  const int8_t *error;
+};
+
 extern "C" {
 
 const void *conn(const int8_t *url);
 
 int64_t execute(const void *c, const int8_t *sql);
 
-const int8_t *copyout(const void *c, const int8_t *copyout_sql);
+CsvString copyout(const void *c, const int8_t *copyout_sql);
 
-void free_str(const int8_t *s);
+void free_csvstring(CsvString s);
 
 void disconnect(void *c);
 

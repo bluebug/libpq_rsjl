@@ -20,7 +20,8 @@ pq.execute(client, "INSERT INTO test VALUES (1, 2.3, 'abc')")
 pq.execute(client, "INSERT INTO test VALUES (2, 8.3, 'def')")
 pq.execute(client, "INSERT INTO test VALUES (3, -4.5, 'ghi')")
 
-@timev "copyout csv" csv = pq.copyout_csv(client, "SELECT * FROM test")
+@timev "copyout" csv = pq.copyout_csv(client, "SELECT * FROM test")
 println(csv)
+pq.free_csvstring(csv)
 
 @timev "disconnect" pq.disconnect(client)

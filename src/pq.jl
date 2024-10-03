@@ -12,6 +12,23 @@ const libpq::String = normpath(joinpath(dirname(@__FILE__), "..", "target", "rel
 # Base.print(io::IO, s::Ptr{Cchar}) = (write(io, unsafe_string(s)); nothing)
 # Base.show(io::IO, s::Ptr{Cchar}) = show(io, unsafe_string(s))
 
+mutable struct CsvString
+    ptr::Ptr{Cchar}
+    len::UInt32
+    error::Ptr{Cchar}
+end
+
+Base.print(io::IO, s::CsvString) = (write(io, begin
+    if s.ptr != C_NULL
+        unsafe_string(s.ptr, s.len)
+    elseif s.error != C_NULL
+        unsafe_string(s.error)
+    else
+        ""
+    end
+end);
+nothing)
+
 function conn(url)::Ptr{Cvoid}
     ccall((:conn, libpq), Ptr{Cvoid}, (Cstring,), url)
 end
@@ -20,24 +37,18 @@ function execute(c, sql)::Cint
     ccall((:execute, libpq), Cint, (Ptr{Cvoid}, Cstring), c, sql)
 end
 
-function copyout_csv(c, select_sql; delimiter="\t")::String
+function copyout_csv(c, select_sql; delimiter="\t")::CsvString
     copyout_sql = "COPY ($select_sql) TO STDOUT (FORMAT CSV, HEADER, DELIMITER '$delimiter', ENCODING 'utf-8');"
-    s = ccall((:copyout, libpq), Cstring, (Ptr{Cvoid}, Cstring), c, copyout_sql)
-    csv = unsafe_string(s)
-    free_str(s)
+    ccall((:copyout, libpq), CsvString, (Ptr{Cvoid}, Cstring), c, copyout_sql)
+end
 
-    csv
+function free_csvstring(x)
+    ccall((:free_csvstring, libpq), Cvoid, (CsvString,), x)
 end
 
 function disconnect(c)::Cvoid
     ccall((:disconnect, libpq), Cvoid, (Ptr{Cvoid},), c)
 end
 
-function free_str(s)
-    ccall((:free_str, libpq), Cvoid, (Cstring,), s)
-
-    nothing
-end
-
-export conn, execute, copyout_csv, disconnect
+export conn, execute, copyout_csv, free_csvstring, disconnect
 end
