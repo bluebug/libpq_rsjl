@@ -17,17 +17,22 @@ build_rs()
 build_jl()
 test()
 ```
+
 2. or build once
 ``` cmd
 julia build.jl
 ```
 
-
-
 ### howto:
 Refer to the test code in build.jl
 
 ### changelog:
+- 2024-10-10 v0.2.0: 
+    - add pq_query_native(rs)/pq_query(jl) function to get dframe from postgresql
+    - add pq_free_dframe(rs) function to release dframe, but not sure if the rust code releases the memory correctly💣
+    - add test code for dframe in build.jl
+    - call unsafe_string only when call copyout.body
+
 - 2024-10-09 v0.1.1: 
     - using Clang.jl to generate julia library
     - use mutable struct Copyout so that rust memory can be freed auto

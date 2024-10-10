@@ -1,6 +1,6 @@
 using Pkg
 using Clang.Generators
-
+using StringViews
 function build_rs()
     println("📌 start to build rust library debug version")
     run(`cargo build`)
@@ -22,6 +22,7 @@ function build_jl()
             "export_symbol_prefixes" => ["pq_"],
             "auto_mutability" => true,
             "auto_mutability_with_new" => false,
+            "extract_c_comment_style" => "doxygen",
         ))
 
     args = get_default_args()  # Note you must call this function firstly and then append your own flags
@@ -50,15 +51,24 @@ function test()
             @time "  ✔️ insert 3     " pq.pq_execute(client, "INSERT INTO test VALUES (3, -4.5, 'ghi')")
             @time "  ✔️ insert 4     " pq.pq_execute(client, "INSERT INTO test VALUES (4, -242.315, '📌📌📌')")
             delim = '\t'
-            @time "  ✔️ copyout      " csv = pq.pq_copyout(client, "SELECT * FROM test"; delim=delim) # default delim is \t 
+            @time "  ✔️ copyout      " out = pq.pq_copyout(client, "SELECT * FROM test"; delim=delim) # default delim is \t 
             println()
-            @time "  ✔️ print by rs  " pq.pq_show_copyout(csv)
+            @time "  ✔️ print by rs  " pq.pq_show_copyout(out)
             println()
-            @time "  ✔️ print by jl  " println(csv)
+            @time "  ✔️ print by jl  " println(out.body)
             println()
 
-            @time "  ✔️ read by CSV  " file = CSV.File(IOBuffer(unsafe_wrap(Array, Ptr{UInt8}(csv.body), csv.len)); delim=delim)
+            @time "  ✔️ read by CSV  " file = CSV.File(IOBuffer(out.body); delim=delim)
             println("a: ", file.a, "\nb: ", file.b, "\nc: ", file.c)
+            println()
+
+            @time "  ✔️ query dframe " df = pq.pq_query(client, "SELECT * FROM test")
+            println("   size     ", Int(df.width), "x", Int(df.height))
+            println("   fields   ", df.fields)
+            println("   types    ", df.types)
+            println("   values   ", df.values)
+            println("   err_code ", df.err_code)
+            println("   err_msg  ", df.err_msg == C_NULL ? "" : unsafe_string(df.err_msg))
             println()
 
             @time "  ✔️ drop table   " pq.pq_execute(client, "DROP TABLE IF EXISTS test")
@@ -68,6 +78,8 @@ function test()
     end
 
     @eval real_test()
+    @eval GC.gc()
+    println()
 end
 
 if !isinteractive()

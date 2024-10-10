@@ -1,4 +1,36 @@
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::{
+    ffi::{c_char, c_void, CStr, CString},
+    ptr::{null, null_mut},
+};
+
+#[repr(C)]
+#[derive(PartialEq)]
+pub enum DTypes {
+    I8 = 0,
+    I32 = 1,
+    I64 = 2,
+    F32 = 3,
+    F64 = 4,
+    Str = 5,
+}
+
+#[repr(C)]
+pub struct DFrame {
+    /// number of fields
+    pub width: u32,
+    /// number of rows
+    pub height: u32,
+    /// field names
+    pub fields: *mut *const u8,
+    /// field types
+    pub types: *mut DTypes,
+    // field values
+    pub values: *mut *const c_void,
+    /// error code, 0 means success, >0 means failed
+    pub err_code: u32,
+    /// error message
+    pub err_msg: *mut i8,
+}
 
 #[repr(C)]
 pub struct Copyout {
@@ -50,6 +82,157 @@ pub extern "C" fn pq_execute(c: *const c_void, sql: *const i8) -> i64 {
     } else {
         println!("invalid sql:{}", sql.err().unwrap());
         -3
+    }
+}
+
+#[no_mangle]
+/// query a sql and return a dataframe
+pub extern "C" fn pq_query_native(c: *const c_void, sql: *const i8) -> DFrame {
+    let mut width = 0;
+    let mut height = 0;
+    let mut fields = null_mut();
+    let mut types = null_mut();
+    let mut values = null_mut();
+    let mut err_code = 0;
+    let mut err_msg = null_mut();
+
+    if c.is_null() {
+        err_code = 1;
+        err_msg = CString::new("client is null").unwrap().into_raw();
+    } else {
+        let sql = unsafe { CStr::from_ptr(sql).to_str() };
+        if sql.is_ok() {
+            let res = (unsafe { &mut *(c as *mut postgres::Client) }).query(sql.unwrap(), &[]);
+            if res.is_ok() {
+                let rows = res.as_ref().unwrap();
+                height = rows.len() as u32;
+                if height > 0 {
+                    let row = &rows[0];
+                    let columns = row.columns();
+                    width = columns.len() as u32;
+                    let mut fs = vec![];
+                    let mut ts = vec![];
+                    let mut vs = vec![];
+                    for (col_index, col) in columns.iter().enumerate() {
+                        fs.push(CString::new(col.name()).unwrap().into_raw());
+                        match col.type_() {
+                            &postgres::types::Type::BOOL => {
+                                ts.push(DTypes::I8);
+                                let mut v = vec![0i8; height as usize];
+                                for (row_index, row) in rows.iter().enumerate() {
+                                    v[row_index] = row.get::<usize, i8>(col_index);
+                                }
+                                vs.push(Box::into_raw(v.into_boxed_slice()) as *const c_void);
+                            }
+                            &postgres::types::Type::INT4 => {
+                                ts.push(DTypes::I32);
+                                let mut v = vec![0i32; height as usize];
+                                for (row_index, row) in rows.iter().enumerate() {
+                                    v[row_index] = row.get::<usize, i32>(col_index);
+                                }
+                                vs.push(Box::into_raw(v.into_boxed_slice()) as *const c_void);
+                            }
+                            &postgres::types::Type::INT8 => {
+                                ts.push(DTypes::I64);
+                                let mut v = vec![0i64; height as usize];
+                                for (row_index, row) in rows.iter().enumerate() {
+                                    v[row_index] = row.get::<usize, i64>(col_index);
+                                }
+                                vs.push(Box::into_raw(v.into_boxed_slice()) as *const c_void);
+                            }
+                            &postgres::types::Type::FLOAT4 => {
+                                ts.push(DTypes::F32);
+                                let mut v = vec![f32::NAN; height as usize];
+                                for (row_index, row) in rows.iter().enumerate() {
+                                    v[row_index] = row.try_get(col_index).unwrap_or(f32::NAN);
+                                }
+                                vs.push(Box::into_raw(v.into_boxed_slice()) as *const c_void);
+                            }
+                            &postgres::types::Type::FLOAT8 => {
+                                ts.push(DTypes::F64);
+                                let mut v = vec![0f64; height as usize];
+                                for (row_index, row) in rows.iter().enumerate() {
+                                    v[row_index] = row.try_get(col_index).unwrap_or(f64::NAN);
+                                }
+                                vs.push(Box::into_raw(v.into_boxed_slice()) as *const c_void);
+                            }
+                            &postgres::types::Type::TEXT | &postgres::types::Type::VARCHAR => {
+                                ts.push(DTypes::Str);
+                                let mut v = vec![null(); height as usize];
+                                for (row_index, row) in rows.iter().enumerate() {
+                                    let s =
+                                        row.try_get::<usize, String>(col_index).unwrap_or_default();
+                                    v[row_index] = CString::new(s).unwrap().into_raw();
+                                }
+                                vs.push(Box::into_raw(v.into_boxed_slice()) as *const c_void);
+                            }
+                            _ => panic!("unsupported type"),
+                        };
+                    }
+                    fields = Box::into_raw(fs.into_boxed_slice()) as *mut *const u8;
+                    types = Box::into_raw(ts.into_boxed_slice()) as *mut DTypes;
+                    values = Box::into_raw(vs.into_boxed_slice()) as *mut *const c_void;
+                }
+            } else {
+                err_code = 3;
+                err_msg = CString::new(format!("query failed:{}", res.err().unwrap()).as_str())
+                    .unwrap()
+                    .into_raw();
+            }
+        } else {
+            err_code = 2;
+            err_msg = CString::new(format!("invalid sql:{}", sql.err().unwrap()).as_str())
+                .unwrap()
+                .into_raw();
+        }
+    }
+    DFrame {
+        width,
+        height,
+        fields,
+        types,
+        values,
+        err_code,
+        err_msg,
+    }
+}
+
+#[no_mangle]
+/// free data frame
+pub extern "C" fn pq_free_dframe(df: DFrame) {
+    if !df.values.is_null() {
+        let vs = unsafe { std::slice::from_raw_parts(df.values, df.width as usize) };
+        if !df.types.is_null() {
+            let ts = unsafe { std::slice::from_raw_parts(df.types, df.width as usize) };
+            for (i, t) in ts.iter().enumerate() {
+                if t == &DTypes::Str {
+                    println!("begin free values");
+                    let ptr = vs[i] as *mut *mut i8;
+                    let v = unsafe { &*std::ptr::slice_from_raw_parts(ptr, df.width as usize) };
+                    for f in v.iter() {
+                        let _ = unsafe { CString::from_raw(*f) };
+                    }
+                    println!("end free values");
+                }
+            }
+        }
+    } else {
+        if !df.types.is_null() {
+            println!("begin free types");
+            let _ = unsafe { &*std::ptr::slice_from_raw_parts(df.types, df.width as usize) };
+            println!("end free types");
+        }
+    }
+
+    if !df.fields.is_null() {
+        println!("begin free fields");
+        let fs = unsafe {
+            &*std::ptr::slice_from_raw_parts(df.fields as *mut *mut i8, df.width as usize)
+        };
+        for f in fs.iter() {
+            let _ = unsafe { CString::from_raw(*f) };
+        }
+        println!("end free fields");
     }
 }
 

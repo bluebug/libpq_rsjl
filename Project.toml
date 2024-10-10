@@ -1,7 +1,7 @@
 name = "libpq"
 uuid = "800dc8f6-2f71-4e31-9c72-9818ab78c6bf"
 authors = ["bluebug <bluebug.cn@gmail.com>"]
-version = "0.1.1"
+version = "0.2.0"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"

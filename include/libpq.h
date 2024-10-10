@@ -3,6 +3,43 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+enum DTypes {
+  I8 = 0,
+  I32 = 1,
+  I64 = 2,
+  F32 = 3,
+  F64 = 4,
+  Str = 5,
+};
+
+struct DFrame {
+  /**
+   * number of fields
+   */
+  uint32_t width;
+  /**
+   * number of rows
+   */
+  uint32_t height;
+  /**
+   * field names
+   */
+  const uint8_t **fields;
+  /**
+   * field types
+   */
+  enum DTypes *types;
+  const void **values;
+  /**
+   * error code, 0 means success, >0 means failed
+   */
+  uint32_t err_code;
+  /**
+   * error message
+   */
+  int8_t *err_msg;
+};
+
 struct Copyout {
   /**
    * csv string or error message
@@ -28,6 +65,16 @@ const void *pq_conn(const int8_t *url);
  * Returns -3 if invalid sql
  */
 int64_t pq_execute(const void *c, const int8_t *sql);
+
+/**
+ * query a sql and return a dataframe
+ */
+struct DFrame pq_query_native(const void *c, const int8_t *sql);
+
+/**
+ * free data frame
+ */
+void pq_free_dframe(struct DFrame df);
 
 /**
  * copy out query result to csv string
