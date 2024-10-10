@@ -7,6 +7,16 @@ Use the rust postgres library to generate a postgresql client that can be quickl
 3. Postgresql database
 4. Modify the database link and test code in build.jl
 
+### Flow of development:
+``` mermaid 
+flowchart LR;
+
+rust[rust cdylib] -- cbindgen -->c[c header];
+c -- Clang.jl
+[with prefix and postfix]-->julia[julia library];
+
+```
+
 ### Compile method:
 using global julia env
 1. build step by step
