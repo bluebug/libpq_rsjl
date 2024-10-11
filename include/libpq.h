@@ -37,7 +37,7 @@ struct DFrame {
   /**
    * error message
    */
-  int8_t *err_msg;
+  uint8_t *err_msg;
 };
 
 struct Copyout {

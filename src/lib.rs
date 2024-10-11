@@ -29,7 +29,7 @@ pub struct DFrame {
     /// error code, 0 means success, >0 means failed
     pub err_code: u32,
     /// error message
-    pub err_msg: *mut i8,
+    pub err_msg: *mut u8,
 }
 
 #[repr(C)]
@@ -193,7 +193,7 @@ pub extern "C" fn pq_query_native(c: *const c_void, sql: *const i8) -> DFrame {
         types,
         values,
         err_code,
-        err_msg,
+        err_msg: err_msg as *mut u8,
     }
 }
 
@@ -201,38 +201,35 @@ pub extern "C" fn pq_query_native(c: *const c_void, sql: *const i8) -> DFrame {
 /// free data frame
 pub extern "C" fn pq_free_dframe(df: DFrame) {
     if !df.values.is_null() {
-        let vs = unsafe { std::slice::from_raw_parts(df.values, df.width as usize) };
+        let vs = unsafe { Vec::from_raw_parts(df.values, df.width as usize, df.width as usize) };
         if !df.types.is_null() {
-            let ts = unsafe { std::slice::from_raw_parts(df.types, df.width as usize) };
+            let ts = unsafe { Vec::from_raw_parts(df.types, df.width as usize, df.width as usize) };
             for (i, t) in ts.iter().enumerate() {
                 if t == &DTypes::Str {
-                    dbg!("begin free values");
-                    let ptr = vs[i] as *mut *mut i8;
-                    let v = unsafe { &*std::ptr::slice_from_raw_parts(ptr, df.width as usize) };
+                    let v = unsafe {
+                        Vec::from_raw_parts(
+                            vs[i] as *mut *mut i8,
+                            df.height as usize,
+                            df.height as usize,
+                        )
+                    };
                     for f in v.iter() {
                         let _ = unsafe { CString::from_raw(*f) };
                     }
-                    dbg!("end free values");
                 }
             }
         }
     } else {
         if !df.types.is_null() {
-            dbg!("begin free types");
-            let _ = unsafe { &*std::ptr::slice_from_raw_parts(df.types, df.width as usize) };
-            dbg!("end free types");
+            let _ = unsafe { Vec::from_raw_parts(df.types, df.width as usize, df.width as usize) };
         }
     }
 
     if !df.fields.is_null() {
-        dbg!("begin free fields");
-        let fs = unsafe {
-            &*std::ptr::slice_from_raw_parts(df.fields as *mut *mut i8, df.width as usize)
-        };
+        let fs = unsafe { Vec::from_raw_parts(df.fields, df.width as usize, df.width as usize) };
         for f in fs.iter() {
-            let _ = unsafe { CString::from_raw(*f) };
+            let _ = unsafe { CString::from_raw(*f as *mut i8) };
         }
-        dbg!("end free fields");
     }
 }
 

@@ -37,7 +37,7 @@ mutable struct DFrame
     types::Ptr{DTypes}
     values::Ptr{Ptr{Cvoid}}
     err_code::UInt32
-    err_msg::Ptr{Int8}
+    err_msg::Ptr{UInt8}
 end
 
 mutable struct Copyout
@@ -174,7 +174,7 @@ function pq_query(c, sql)
     df = pq_query_native(c, sql)
     Base.finalizer(df) do x
         @async begin
-            pq_free_dframe(x)
+            @timev "  ✔️ free dframe  " pq_free_dframe(x)
         end
     end
     df
