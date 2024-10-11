@@ -1,16 +1,31 @@
 using StringViews
 
-Base.length(cs::Cstring) = ccall(:strlen, Cint, (Cstring,), cs)
-CStringView(cs::Cstring) = StringView(unsafe_wrap(Array, Ptr{UInt8}(cs), length(cs)))
+function CStringLength(cs)
+    ptr = Ptr{UInt8}(cs)
+    if ptr == C_NULL
+        0
+    else
+        ccall(:strlen, Cint, (Ptr{UInt8},), ptr)
+    end
+end
+
+function CStringView(cs)
+    ptr = Ptr{UInt8}(cs)
+    if ptr == C_NULL
+        StringView("")
+    else
+        StringView(unsafe_wrap(Array, ptr, length(cs)))
+    end
+end
+Base.length(cs::Cstring) = CStringLength(cs)
 Base.write(io::IO, cs::Cstring) = write(io, CStringView(cs))
 Base.print(io::IO, cs::Cstring) = (write(io, CStringView(cs)); nothing)
-Base.show(io::IO, cs::Cstring) = (write(io, CStringView(cs)); nothing)
+Base.show(io::IO, cs::Cstring) = show(io, CStringView(cs))
 
-Base.length(cs::Ptr{UInt8}) = ccall(:strlen, Cint, (Ptr{UInt8},), cs)
-CStringView(cs::Ptr{UInt8}) = StringView(unsafe_wrap(Array, cs, length(cs)))
+Base.length(cs::Ptr{UInt8}) = CStringLength(cs)
 Base.write(io::IO, cs::Ptr{UInt8}) = write(io, CStringView(cs))
 Base.print(io::IO, cs::Ptr{UInt8}) = (write(io, CStringView(cs)); nothing)
-Base.show(io::IO, cs::Ptr{UInt8}) = (write(io, CStringView(cs)); nothing)
+Base.show(io::IO, cs::Ptr{UInt8}) = show(io, CStringView(cs))
 
 export CStringView
 
