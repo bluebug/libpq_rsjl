@@ -8,6 +8,7 @@ Use the rust postgres library to generate a postgresql client that can be quickl
 4. Modify the database link and test code in build.jl
 
 ### Flow of development:
+Interop rust and julia together without jirs.
 ``` mermaid 
 flowchart LR;
 
@@ -37,6 +38,10 @@ julia build.jl
 Refer to the test code in build.jl
 
 ### changelog:
+- 2024-10-10 v0.2.1: 
+    - replace unsafe_string with StringViews.jl, to avoid memory copy for Cstring
+    - add property `buf` for Copyout, return a IOBuffer object for CSV.jl
+    
 - 2024-10-10 v0.2.0: 
     - add pq_query_native(rs)/pq_query(jl) function to get dframe from postgresql
     - add pq_free_dframe(rs) function to release dframe, but not sure if the rust code releases the memory correctly💣

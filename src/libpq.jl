@@ -2,11 +2,23 @@ module libpq
 
 using CEnum
 
-const libpq_path = normpath(joinpath(dirname(@__FILE__), "..", "target", "release", "libpq.$(Sys.iswindows() ? "dll" : "so")"))
+using StringViews
 
-Base.write(io::IO, s::Cstring) = write(io, unsafe_string(s))
-Base.print(io::IO, s::Cstring) = (write(io, unsafe_string(s)); nothing)
-Base.show(io::IO, s::Cstring) = show(io, unsafe_string(s))
+Base.length(cs::Cstring) = ccall(:strlen, Cint, (Cstring,), cs)
+CStringView(cs::Cstring) = StringView(unsafe_wrap(Array, Ptr{UInt8}(cs), length(cs)))
+Base.write(io::IO, cs::Cstring) = write(io, CStringView(cs))
+Base.print(io::IO, cs::Cstring) = (write(io, CStringView(cs)); nothing)
+Base.show(io::IO, cs::Cstring) = (write(io, CStringView(cs)); nothing)
+
+Base.length(cs::Ptr{UInt8}) = ccall(:strlen, Cint, (Ptr{UInt8},), cs)
+CStringView(cs::Ptr{UInt8}) = StringView(unsafe_wrap(Array, cs, length(cs)))
+Base.write(io::IO, cs::Ptr{UInt8}) = write(io, CStringView(cs))
+Base.print(io::IO, cs::Ptr{UInt8}) = (write(io, CStringView(cs)); nothing)
+Base.show(io::IO, cs::Ptr{UInt8}) = (write(io, CStringView(cs)); nothing)
+
+export CStringView
+
+const libpq_path = normpath(joinpath(dirname(@__FILE__), "..", "target", "release", "libpq.$(Sys.iswindows() ? "dll" : "so")"))
 
 
 @cenum DTypes::UInt32 begin
@@ -29,11 +41,19 @@ mutable struct DFrame
 end
 
 mutable struct Copyout
-    body::Ptr{Int8}
+    body::Ptr{UInt8}
     len::UInt32
     err::UInt32
 end
 
+"""
+    pq_conn(url)
+
+### Prototype
+```c
+const void *pq_conn(const int8_t *url);
+```
+"""
 function pq_conn(url)
     ccall((:pq_conn, libpq_path), Ptr{Cvoid}, (Ptr{Int8},), url)
 end
@@ -44,6 +64,11 @@ end
 Executes a statement, returning the number of rows modified.
 
 Returns -1 if client is null Returns -2 if execute failed Returns -3 if invalid sql
+
+### Prototype
+```c
+int64_t pq_execute(const void *c, const int8_t *sql);
+```
 """
 function pq_execute(c, sql)
     ccall((:pq_execute, libpq_path), Int64, (Ptr{Cvoid}, Ptr{Int8}), c, sql)
@@ -53,6 +78,11 @@ end
     pq_query_native(c, sql)
 
 query a sql and return a dataframe
+
+### Prototype
+```c
+struct DFrame pq_query_native(const void *c, const int8_t *sql);
+```
 """
 function pq_query_native(c, sql)
     ccall((:pq_query_native, libpq_path), DFrame, (Ptr{Cvoid}, Ptr{Int8}), c, sql)
@@ -62,6 +92,11 @@ end
     pq_free_dframe(df)
 
 free data frame
+
+### Prototype
+```c
+void pq_free_dframe(struct DFrame df);
+```
 """
 function pq_free_dframe(df)
     ccall((:pq_free_dframe, libpq_path), Cvoid, (DFrame,), df)
@@ -71,19 +106,48 @@ end
     pq_copyout_native(c, sql, delim, header)
 
 copy out query result to csv string
+
+### Prototype
+```c
+struct Copyout pq_copyout_native(const void *c, const int8_t *sql, char delim, uint8_t header);
+```
 """
 function pq_copyout_native(c, sql, delim, header)
     ccall((:pq_copyout_native, libpq_path), Copyout, (Ptr{Cvoid}, Ptr{Int8}, Cchar, UInt8), c, sql, delim, header)
 end
 
+"""
+    pq_show_copyout(s)
+
+### Prototype
+```c
+void pq_show_copyout(struct Copyout s);
+```
+"""
 function pq_show_copyout(s)
     ccall((:pq_show_copyout, libpq_path), Cvoid, (Copyout,), s)
 end
 
+"""
+    pq_free_copyout(s)
+
+### Prototype
+```c
+void pq_free_copyout(struct Copyout s);
+```
+"""
 function pq_free_copyout(s)
     ccall((:pq_free_copyout, libpq_path), Cvoid, (Copyout,), s)
 end
 
+"""
+    pq_disconn(c)
+
+### Prototype
+```c
+void pq_disconn(void *c);
+```
+"""
 function pq_disconn(c)
     ccall((:pq_disconn, libpq_path), Cvoid, (Ptr{Cvoid},), c)
 end
@@ -99,8 +163,8 @@ function pq_copyout(c, sql; delim='\t', header=true)
 end
 
 Base.getproperty(out::Copyout, sym::Symbol) = begin
-    if sym === :body
-        unsafe_string(getfield(out, sym), out.len)
+    if sym === :buf
+        IOBuffer(unsafe_wrap(Array, out.body, out.len))
     else
         getfield(out, sym)
     end

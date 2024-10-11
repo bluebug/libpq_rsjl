@@ -35,7 +35,7 @@ pub struct DFrame {
 #[repr(C)]
 pub struct Copyout {
     /// csv string or error message
-    pub body: *const i8,
+    pub body: *const u8,
     /// length of body without \0
     pub len: u32,
     /// 0 means success and body is csv string, >0 means failed and body is error message
@@ -50,11 +50,11 @@ pub extern "C" fn pq_conn(url: *const i8) -> *const c_void {
         if client.is_ok() {
             Box::into_raw(Box::new(client.unwrap())) as *const c_void
         } else {
-            println!("connect failed:{}", client.err().unwrap());
+            dbg!("connect failed:{}", client.err().unwrap());
             std::ptr::null()
         }
     } else {
-        println!("invalid url:{}", url.err().unwrap());
+        dbg!("invalid url:{}", url.err().unwrap());
         std::ptr::null()
     }
 }
@@ -67,7 +67,7 @@ pub extern "C" fn pq_conn(url: *const i8) -> *const c_void {
 /// Returns -3 if invalid sql
 pub extern "C" fn pq_execute(c: *const c_void, sql: *const i8) -> i64 {
     if c.is_null() {
-        println!("client is null");
+        dbg!("client is null");
         return -1;
     }
     let sql = unsafe { CStr::from_ptr(sql).to_str() };
@@ -76,11 +76,11 @@ pub extern "C" fn pq_execute(c: *const c_void, sql: *const i8) -> i64 {
         if res.is_ok() {
             res.unwrap() as i64
         } else {
-            println!("execute failed:{}", res.err().unwrap());
+            dbg!("execute failed:{}", res.err().unwrap());
             -2
         }
     } else {
-        println!("invalid sql:{}", sql.err().unwrap());
+        dbg!("invalid sql:{}", sql.err().unwrap());
         -3
     }
 }
@@ -206,33 +206,33 @@ pub extern "C" fn pq_free_dframe(df: DFrame) {
             let ts = unsafe { std::slice::from_raw_parts(df.types, df.width as usize) };
             for (i, t) in ts.iter().enumerate() {
                 if t == &DTypes::Str {
-                    println!("begin free values");
+                    dbg!("begin free values");
                     let ptr = vs[i] as *mut *mut i8;
                     let v = unsafe { &*std::ptr::slice_from_raw_parts(ptr, df.width as usize) };
                     for f in v.iter() {
                         let _ = unsafe { CString::from_raw(*f) };
                     }
-                    println!("end free values");
+                    dbg!("end free values");
                 }
             }
         }
     } else {
         if !df.types.is_null() {
-            println!("begin free types");
+            dbg!("begin free types");
             let _ = unsafe { &*std::ptr::slice_from_raw_parts(df.types, df.width as usize) };
-            println!("end free types");
+            dbg!("end free types");
         }
     }
 
     if !df.fields.is_null() {
-        println!("begin free fields");
+        dbg!("begin free fields");
         let fs = unsafe {
             &*std::ptr::slice_from_raw_parts(df.fields as *mut *mut i8, df.width as usize)
         };
         for f in fs.iter() {
             let _ = unsafe { CString::from_raw(*f) };
         }
-        println!("end free fields");
+        dbg!("end free fields");
     }
 }
 
@@ -277,7 +277,7 @@ pub extern "C" fn pq_copyout_native(
     }
 
     Copyout {
-        body: CString::new(body.as_str()).unwrap().into_raw(),
+        body: CString::new(body.as_str()).unwrap().into_raw() as *const u8,
         len: body.len() as u32,
         err,
     }
@@ -286,7 +286,7 @@ pub extern "C" fn pq_copyout_native(
 #[no_mangle]
 pub extern "C" fn pq_show_copyout(s: Copyout) {
     if !s.body.is_null() {
-        let body = unsafe { CStr::from_ptr(s.body) };
+        let body = unsafe { CStr::from_ptr(s.body as *const i8) };
         println!("{}", body.to_str().unwrap());
     }
 }

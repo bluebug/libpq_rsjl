@@ -44,7 +44,7 @@ struct Copyout {
   /**
    * csv string or error message
    */
-  const int8_t *body;
+  const uint8_t *body;
   /**
    * length of body without \0
    */

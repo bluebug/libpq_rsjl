@@ -9,8 +9,8 @@ function pq_copyout(c, sql; delim='\t', header=true)
 end
 
 Base.getproperty(out::Copyout, sym::Symbol) = begin
-    if sym === :body
-        unsafe_string(getfield(out, sym), out.len)
+    if sym === :buf
+        IOBuffer(unsafe_wrap(Array, out.body, out.len))
     else
         getfield(out, sym)
     end

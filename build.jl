@@ -23,6 +23,7 @@ function build_jl()
             "auto_mutability" => true,
             "auto_mutability_with_new" => false,
             "extract_c_comment_style" => "doxygen",
+            "show_c_function_prototype" => true,
         ))
 
     args = get_default_args()  # Note you must call this function firstly and then append your own flags
@@ -58,7 +59,7 @@ function test()
             @time "  ✔️ print by jl  " println(out.body)
             println()
 
-            @time "  ✔️ read by CSV  " file = CSV.File(IOBuffer(out.body); delim=delim)
+            @time "  ✔️ read by CSV  " file = CSV.File(out.buf; delim=delim)
             println("a: ", file.a, "\nb: ", file.b, "\nc: ", file.c)
             println()
 
@@ -68,7 +69,7 @@ function test()
             println("   types    ", df.types)
             println("   values   ", df.values)
             println("   err_code ", df.err_code)
-            println("   err_msg  ", df.err_msg == C_NULL ? "" : unsafe_string(df.err_msg))
+            println("   err_msg  ", df.err_msg == C_NULL ? "" : pq.CStringView(df.err_msg))
             println()
 
             @time "  ✔️ drop table   " pq.pq_execute(client, "DROP TABLE IF EXISTS test")
