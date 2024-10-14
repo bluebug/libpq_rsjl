@@ -220,6 +220,30 @@ Base.getproperty(df::DFrame, sym::Symbol) = begin
             end
         end
         values
+    elseif sym === :columns
+        columns = Dict{Union{String,Cstring},Vector}()
+        fields = unsafe_wrap(Array{Cstring}, Ptr{Cstring}(getfield(df, :fields)), df.width)
+        types = unsafe_wrap(Array{DTypes}, Ptr{DTypes}(getfield(df, :types)), df.width)
+        ptrs = unsafe_wrap(Array{Ptr{Cvoid}}, Ptr{Ptr{Cvoid}}(getfield(df, :values)), df.width)
+        for i in 1:df.width
+            column_name = unsafe_string(fields[i])
+            columns[column_name] = columns[fields[i]] = begin
+                if types[i] == I8
+                    unsafe_wrap(Array, Ptr{Int8}(ptrs[i]), df.height)
+                elseif types[i] == I32
+                    unsafe_wrap(Array, Ptr{Int32}(ptrs[i]), df.height)
+                elseif types[i] == I64
+                    unsafe_wrap(Array, Ptr{Int64}(ptrs[i]), df.height)
+                elseif types[i] == F32
+                    unsafe_wrap(Array, Ptr{Float32}(ptrs[i]), df.height)
+                elseif types[i] == F64
+                    unsafe_wrap(Array, Ptr{Float64}(ptrs[i]), df.height)
+                else
+                    unsafe_wrap(Array, Ptr{Cstring}(ptrs[i]), df.height)
+                end
+            end
+        end
+        columns
     else
         getfield(df, sym)
     end

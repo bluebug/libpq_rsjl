@@ -38,6 +38,9 @@ julia build.jl
 Refer to the test code in build.jl
 
 ### changelog:
+- 2024-10-14 v0.2.2: 
+    - add columns::Dict{Union{String,Cstring},Vector} property for DFrame
+
 - 2024-10-10 v0.2.1: 
     - replace unsafe_string with StringViews.jl, to avoid memory copy for Cstring
     - add property `buf` for Copyout, return a IOBuffer object for CSV.jl
